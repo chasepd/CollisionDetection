@@ -22,9 +22,12 @@ namespace CollisionDetection.Screens
         private SpriteBatch _spriteBatch;
         private List<CollisionObject> _collisionObjects;        
         private Tweener _tweener;
+        private SpriteFont _font;
         private Dictionary<CollisionObject, List<CollisionObject>> _collisions;
-        private double _collisionTimeTracker;
-        private const double _collisionDelay = 0.2;
+        private bool airResistanceEnabled;
+        private bool consumeModeEnabled;
+        List<CollisionObject> objectsToRemove;
+        private readonly Vector2 airResisitance;
         private readonly FastRandom _random;    
       
         public int ScreenWidth => GraphicsDevice.Viewport.Width;
@@ -34,8 +37,11 @@ namespace CollisionDetection.Screens
         {
             _random = new FastRandom();
             _collisionObjects = new List<CollisionObject>();
+            objectsToRemove = new List<CollisionObject>();
             _tweener = new Tweener();
-            _collisionTimeTracker = 0.0;
+            airResisitance = new Vector2(0.1f, 0.1f);
+            airResistanceEnabled = false;
+            consumeModeEnabled = false;
         }
 
         public override void Initialize()
@@ -46,7 +52,9 @@ namespace CollisionDetection.Screens
         public override void LoadContent()
         {
             base.LoadContent();
+            
             _spriteBatch = new SpriteBatch(GraphicsDevice);
+            _font = Content.Load<SpriteFont>("Arial");
         }
 
         public override void UnloadContent()
@@ -61,7 +69,6 @@ namespace CollisionDetection.Screens
             var elapsedSeconds = gameTime.GetElapsedSeconds();
             _collisions = new Dictionary<CollisionObject, List<CollisionObject>>();
             
-            _collisionTimeTracker += elapsedSeconds;
 
             foreach (var collisionObject in _collisionObjects)
             {
@@ -70,21 +77,44 @@ namespace CollisionDetection.Screens
             foreach (var collisionObject in _collisionObjects)
             {
                 collisionObject.Position += collisionObject.Velocity * elapsedSeconds;
-                ConstrainObject(collisionObject);
-                if (_collisionTimeTracker > _collisionDelay)
+                if (airResistanceEnabled)
                 {
-                    HandleCollisions(collisionObject);
-                    //_collisionTimeTracker = 0.0;
+                    if (collisionObject.Velocity.X > 0)
+                    {
+                        collisionObject.Velocity.X -= airResisitance.X;
+                    }
+                    if (collisionObject.Velocity.X < 0)
+                    {
+                        collisionObject.Velocity.X += airResisitance.X;
+                    }
+                    if (collisionObject.Velocity.Y > 0)
+                    {
+                        collisionObject.Velocity.Y -= airResisitance.Y;
+                    }
+                    if (collisionObject.Velocity.Y < 0)
+                    {
+                        collisionObject.Velocity.Y += airResisitance.Y;
+                    }
                 }
+                
+
+                ConstrainObject(collisionObject);
+                HandleCollisions(collisionObject);
             }
 
-            
+            foreach (var obj in objectsToRemove)
+            {
+                _collisionObjects.Remove(obj);
+            }
+
+            objectsToRemove.Clear();
 
             if (keyboardState.WasKeyJustDown(Keys.Escape))
             {
                 Game.Exit();
             }
-            else if (keyboardState.WasKeyJustDown(Keys.Space))
+            
+            if (keyboardState.WasKeyJustDown(Keys.Space))
             {
                 Texture2D texture = new Texture2D(GraphicsDevice, 1, 1);
                 texture.SetData(new Color[] { Color.Red });
@@ -111,6 +141,23 @@ namespace CollisionDetection.Screens
                     };
                     _collisionObjects.Add(newObj);
                 }
+            }
+
+            if (keyboardState.WasKeyJustDown(Keys.A))
+            {
+                airResistanceEnabled ^= true;
+            }
+
+            if (keyboardState.WasKeyJustDown(Keys.C))
+            {
+                consumeModeEnabled ^= true;
+            }
+
+            if (keyboardState.WasKeyJustDown(Keys.X))
+            {
+                consumeModeEnabled = false;
+                airResistanceEnabled = false;
+                _collisionObjects.Clear();
             }
 
             _tweener.Update(elapsedSeconds);
@@ -155,6 +202,12 @@ namespace CollisionDetection.Screens
                 }
             }
 
+            _spriteBatch.DrawString(_font, "Press ESC to Quit", new Vector2(20, 20), Color.White);
+            _spriteBatch.DrawString(_font, "Press Space to Spawn Objects", new Vector2(20, 40), Color.White);
+            _spriteBatch.DrawString(_font, "Press A to Toggle Air Resistance; it is currently " + (airResistanceEnabled? "ON" : "OFF"), new Vector2(20, 60), Color.White);
+            _spriteBatch.DrawString(_font, "Press C to Toggle Consume Mode; it is currently " + (consumeModeEnabled ? "ON" : "OFF"), new Vector2(20, 80), Color.White);
+            _spriteBatch.DrawString(_font, "Press X to Clear", new Vector2(20, 100), Color.White);
+
             _spriteBatch.End();
         }
 
@@ -194,59 +247,71 @@ namespace CollisionDetection.Screens
         }
 
         private void HandleCollisions(CollisionObject collisionObject)
-        {
+        { 
+            // Allow for energy loss as part of the collision
+            var collisionTransferEfficency = 0.99f;
+
             foreach (var otherObject in _collisionObjects)
             {
                 if (collisionObject == otherObject) continue;
 
                 if (otherObject.Bounds.Intersects(collisionObject.Bounds) && !HaveAlreadyCollided(collisionObject, otherObject))
                 {
-                    var otherVelocity = otherObject.Velocity;
-                    var thisVelocity = collisionObject.Velocity;
-
-                    // Allow for energy loss as part of the collision
-                    var collisionTransferEfficency = 0.99f;
-
-                    var thisVelocityDelta = otherVelocity * (otherObject.Mass / collisionObject.Mass);
-                    var otherVelocityDelta = thisVelocity * (collisionObject.Mass / collisionObject.Mass);
-                    collisionObject.Velocity += thisVelocityDelta * collisionTransferEfficency;
-                    collisionObject.Velocity -= otherVelocityDelta;
-                    otherObject.Velocity += otherVelocityDelta * collisionTransferEfficency;
-                    otherObject.Velocity -= thisVelocityDelta;
-
-                    //if(collisionObject.Bounds.Left < otherObject.Bounds.Left)
-                    //{
-                    //    collisionObject.Position.X = otherObject.Bounds.Left - collisionObject.Bounds.Width / 2;
-                    //}
-
-                    //if(collisionObject.Bounds.Right > otherObject.Bounds.Right)
-                    //{
-                    //    collisionObject.Position.X = otherObject.Bounds.Right + collisionObject.Bounds.Width / 2;
-                    //}
-                    _collisions[collisionObject].Add(otherObject);
-
-                    while (otherObject.Bounds.Intersects(collisionObject.Bounds))
+                    if (!consumeModeEnabled)
                     {
-                        if(otherObject.Position.X > collisionObject.Position.X)
+                        var otherVelocity = otherObject.Velocity;
+                        var thisVelocity = collisionObject.Velocity;
+
+                        var thisVelocityDelta = otherVelocity * (otherObject.Mass / collisionObject.Mass);
+                        var otherVelocityDelta = thisVelocity * (collisionObject.Mass / collisionObject.Mass);
+                        collisionObject.Velocity += thisVelocityDelta * collisionTransferEfficency;
+                        collisionObject.Velocity -= otherVelocityDelta;
+                        otherObject.Velocity += otherVelocityDelta * collisionTransferEfficency;
+                        otherObject.Velocity -= thisVelocityDelta;
+
+                        _collisions[collisionObject].Add(otherObject);
+
+                        while (otherObject.Bounds.Intersects(collisionObject.Bounds))
                         {
-                            collisionObject.Position.X--;
-                            otherObject.Position.X++;
+                            if (otherObject.Position.X > collisionObject.Position.X)
+                            {
+                                collisionObject.Position.X--;
+                                otherObject.Position.X++;
+                            }
+                            if (otherObject.Position.X < collisionObject.Position.X)
+                            {
+                                collisionObject.Position.X++;
+                                otherObject.Position.X--;
+                            }
+                            if (otherObject.Position.Y > collisionObject.Position.Y)
+                            {
+                                collisionObject.Position.Y--;
+                                otherObject.Position.Y++;
+                            }
+                            if (otherObject.Position.Y < collisionObject.Position.Y)
+                            {
+                                collisionObject.Position.Y++;
+                                otherObject.Position.Y--;
+                            }
                         }
-                        if(otherObject.Position.X < collisionObject.Position.X)
+                    }
+                    else
+                    {                        
+                        _collisions[collisionObject].Add(otherObject);
+                        var objToBeConsumed = otherObject;
+                        var objConsuming = collisionObject;
+                        if(collisionObject.Mass < otherObject.Mass)
                         {
-                            collisionObject.Position.X++;
-                            otherObject.Position.X--;
+                            objToBeConsumed = collisionObject;
+                            objConsuming = otherObject;
                         }
-                        if(otherObject.Position.Y > collisionObject.Position.Y)
-                        {
-                            collisionObject.Position.Y--;
-                            otherObject.Position.Y++;
-                        }
-                        if(otherObject.Position.Y < collisionObject.Position.Y)
-                        {
-                            collisionObject.Position.Y++;
-                            otherObject.Position.Y--;
-                        }
+
+                        objConsuming.Position = (objConsuming.Position + objToBeConsumed.Position) / 2;
+                        objConsuming.Scale.X += (float)Math.Sqrt(objToBeConsumed.Mass);
+                        objConsuming.Scale.Y += (float)Math.Sqrt(objToBeConsumed.Mass);
+                        objConsuming.Velocity += objToBeConsumed.Velocity * (objToBeConsumed.Mass / objConsuming.Mass) * collisionTransferEfficency;
+                        objectsToRemove.Add(objToBeConsumed);
+                        break;
                     }
                 }
             }
