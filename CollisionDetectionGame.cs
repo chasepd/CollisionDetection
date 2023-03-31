@@ -4,12 +4,12 @@ using Microsoft.Xna.Framework.Input;
 
 namespace CollisionDetection
 {
-    public class Game1 : Game
+    public class CollisionDetectionGame : Game
     {
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
 
-        public Game1()
+        public CollisionDetectionGame()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";

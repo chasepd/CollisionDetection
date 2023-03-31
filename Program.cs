@@ -1,3 +1,3 @@
 ﻿
-using var game = new CollisionDetection.Game1();
+using var game = new CollisionDetection.CollisionDetectionGame();
 game.Run();
