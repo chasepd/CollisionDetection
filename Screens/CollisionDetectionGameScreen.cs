@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended;
+using MonoGame.Extended.Collisions;
 using MonoGame.Extended.Input;
 using MonoGame.Extended.Screens;
 using MonoGame.Extended.Sprites;
@@ -19,8 +20,9 @@ namespace CollisionDetection.Screens
     {
 
         private SpriteBatch _spriteBatch;
-        private List<CollisionObject> _collisionObjects;
+        private List<CollisionObject> _collisionObjects;        
         private Tweener _tweener;
+        private Dictionary<CollisionObject, List<CollisionObject>> _collisions;
         private readonly FastRandom _random;
       
         public int ScreenWidth => GraphicsDevice.Viewport.Width;
@@ -54,6 +56,12 @@ namespace CollisionDetection.Screens
         {
             var keyboardState = KeyboardExtended.GetState();
             var elapsedSeconds = gameTime.GetElapsedSeconds();
+            _collisions = new Dictionary<CollisionObject, List<CollisionObject>>();
+
+            foreach(var collisionObject in _collisionObjects)
+            {
+                _collisions[collisionObject] = new List<CollisionObject>();
+            }
             foreach (var collisionObject in _collisionObjects)
             {
                 collisionObject.Position += collisionObject.Velocity * elapsedSeconds;
@@ -71,27 +79,26 @@ namespace CollisionDetection.Screens
                 texture.SetData(new Color[] { Color.Red });
                 if (_random.Next(0, 2) % 2 == 0)
                 {
-                    _collisionObjects.Add(new CircularCollisionObject
+                    var newObj = new CircularCollisionObject
                     {
                         Position = new Vector2(_random.Next(0, ScreenWidth), _random.Next(0, ScreenHeight)),
                         Velocity = new Vector2(_random.Next(-300, 300), _random.Next(-300, 300)),
                         Sprite = new Sprite(texture),
                         Scale = new Vector2(_random.Next(25, 60), _random.Next(25, 60))
-                    }
-                    );
+                    };
+                    _collisionObjects.Add(newObj);
                 }
                 else
                 {
-
-                    _collisionObjects.Add(new RectangularCollisionObject
+                    var newObj = new RectangularCollisionObject
                     {
                         Position = new Vector2(_random.Next(0, ScreenWidth), _random.Next(0, ScreenHeight)),
                         Sprite = new Sprite(texture),
                         Velocity = new Vector2(_random.Next(-300, 300), _random.Next(-300, 300)),
                         Texture = texture,
                         Scale = new Vector2(_random.Next(25, 60), _random.Next(25, 60))
-                    }
-                    );
+                    };
+                    _collisionObjects.Add(newObj);
                 }
             }
 
@@ -170,15 +177,39 @@ namespace CollisionDetection.Screens
             }
         }
 
+        private bool HaveAlreadyCollided(CollisionObject collisionObject, CollisionObject otherObject)
+        {
+            return _collisions[collisionObject].Contains(otherObject) || _collisions[otherObject].Contains(otherObject);
+        }
+
         private void HandleCollisions(CollisionObject collisionObject)
         {
             foreach (var otherObject in _collisionObjects)
             {
                 if (collisionObject == otherObject) continue;
 
-                if (otherObject.Bounds.Intersects(collisionObject.Bounds))
+                if (otherObject.Bounds.Intersects(collisionObject.Bounds) && !HaveAlreadyCollided(collisionObject, otherObject))
                 {
-                    collisionObject.Velocity *= -1;
+                    var otherVelocity = otherObject.Velocity;
+                    var thisVelocity = collisionObject.Velocity;
+
+                    var thisVelocityDelta = otherVelocity * (otherObject.Mass / collisionObject.Mass);
+                    var otherVelocityDelta = thisVelocity * (collisionObject.Mass / collisionObject.Mass);
+                    collisionObject.Velocity += thisVelocityDelta;
+                    collisionObject.Velocity -= otherVelocityDelta;
+                    otherObject.Velocity += otherVelocityDelta;
+                    otherObject.Velocity -= thisVelocityDelta;
+
+                    if(collisionObject.Bounds.Left < otherObject.Bounds.Left)
+                    {
+                        collisionObject.Position.X = otherObject.Bounds.Left - collisionObject.Bounds.Width / 2;
+                    }
+
+                    if(collisionObject.Bounds.Right > otherObject.Bounds.Right)
+                    {
+                        collisionObject.Position.X = otherObject.Bounds.Right + collisionObject.Bounds.Width / 2;
+                    }
+                    _collisions[collisionObject].Add(otherObject);
                 }
             }
         }

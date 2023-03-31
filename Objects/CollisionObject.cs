@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace CollisionDetection.Objects
 {
-    internal class CollisionObject
+    internal abstract class CollisionObject
     {
         public Vector2 Position;
         public Vector2 Velocity;
@@ -18,6 +18,7 @@ namespace CollisionDetection.Objects
         public Vector2 Scale = Vector2.One;
         public float Rotation = 0f;
         public Sprite Sprite;
-        public RectangleF Bounds => Sprite.GetBoundingRectangle(Position, Rotation, Scale);
+        public virtual float Mass => Sprite.GetBoundingRectangle(Position, Rotation, Scale).Width * Sprite.GetBoundingRectangle(Position, Rotation, Scale).Height;
+        public RectangleF Bounds => Sprite.GetBoundingRectangle(Position, Rotation, Scale);        
     }
 }
