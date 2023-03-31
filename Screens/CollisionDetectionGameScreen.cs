@@ -58,6 +58,7 @@ namespace CollisionDetection.Screens
             {
                 collisionObject.Position += collisionObject.Velocity * elapsedSeconds;
                 ConstrainObject(collisionObject);
+                HandleCollisions(collisionObject);
             }
 
             if (keyboardState.WasKeyJustDown(Keys.Escape))
@@ -166,6 +167,19 @@ namespace CollisionDetection.Screens
             {
                 collisionObject.Position.Y = ScreenHeight - heightHalved;
                 collisionObject.Velocity.Y *= -1;
+            }
+        }
+
+        private void HandleCollisions(CollisionObject collisionObject)
+        {
+            foreach (var otherObject in _collisionObjects)
+            {
+                if (collisionObject == otherObject) continue;
+
+                if (otherObject.Bounds.Intersects(collisionObject.Bounds))
+                {
+                    collisionObject.Velocity *= -1;
+                }
             }
         }
     }
