@@ -54,6 +54,11 @@ namespace CollisionDetection.Screens
         {
             var keyboardState = KeyboardExtended.GetState();
             var elapsedSeconds = gameTime.GetElapsedSeconds();
+            foreach (var collisionObject in _collisionObjects)
+            {
+                collisionObject.Position += collisionObject.Velocity * elapsedSeconds;
+                ConstrainObject(collisionObject);
+            }
 
             if (keyboardState.WasKeyJustDown(Keys.Escape))
             {
@@ -61,26 +66,27 @@ namespace CollisionDetection.Screens
             }
             else if (keyboardState.WasKeyJustDown(Keys.Space))
             {
-                
+                Texture2D texture = new Texture2D(GraphicsDevice, 1, 1);
+                texture.SetData(new Color[] { Color.Red });
                 if (_random.Next(0, 2) % 2 == 0)
-                {                    
+                {
                     _collisionObjects.Add(new CircularCollisionObject
                     {
                         Position = new Vector2(_random.Next(0, ScreenWidth), _random.Next(0, ScreenHeight)),
-                        Velocity = new Vector2(_random.Next(5, 300), _random.Next(5, 300)),
-                        Scale = new Vector2(_random.Next(25, 60), _random.Next(25, 60))                        
+                        Velocity = new Vector2(_random.Next(-300, 300), _random.Next(-300, 300)),
+                        Sprite = new Sprite(texture),
+                        Scale = new Vector2(_random.Next(25, 60), _random.Next(25, 60))
                     }
                     );
                 }
                 else
                 {
-                    Texture2D texture = new Texture2D(GraphicsDevice, 1, 1);
-                    texture.SetData(new Color[] { Color.Red });
+
                     _collisionObjects.Add(new RectangularCollisionObject
                     {
                         Position = new Vector2(_random.Next(0, ScreenWidth), _random.Next(0, ScreenHeight)),
                         Sprite = new Sprite(texture),
-                        Velocity = new Vector2(_random.Next(5, 300), _random.Next(5, 300)),
+                        Velocity = new Vector2(_random.Next(-300, 300), _random.Next(-300, 300)),
                         Texture = texture,
                         Scale = new Vector2(_random.Next(25, 60), _random.Next(25, 60))
                     }
@@ -93,6 +99,7 @@ namespace CollisionDetection.Screens
 
         public override void Draw(GameTime gameTime)
         {
+            GraphicsDevice.Clear(Color.Black);
             _spriteBatch.Begin();
 
             foreach (var collisionObject in _collisionObjects)
@@ -101,26 +108,25 @@ namespace CollisionDetection.Screens
                 {
                     _spriteBatch.DrawEllipse(
                         collisionObject.Position, 
-                        collisionObject.Scale, 
-                        50, 
-                        Color.Aquamarine, 
+                        new Vector2(collisionObject.Bounds.Width / 2, collisionObject.Bounds.Height / 2), 
+                        200, 
+                        Color.Blue, 
                         thickness: collisionObject.Scale.X < collisionObject.Scale.Y ? collisionObject.Scale.X: collisionObject.Scale.Y);
 
                     // Add Outline
                     _spriteBatch.DrawEllipse(
                         collisionObject.Position,
-                        collisionObject.Scale,
-                        50,
+                        new Vector2(collisionObject.Bounds.Width / 2, collisionObject.Bounds.Height / 2),
+                        200,
                         Color.White,
                         thickness: 2
                         );
                 }
                 else
                 {
-                    _spriteBatch.DrawRectangle(
+                    _spriteBatch.FillRectangle(
                         collisionObject.Bounds,
-                        Color.Red,
-                        thickness: collisionObject.Scale.X < collisionObject.Scale.Y ? collisionObject.Scale.X : collisionObject.Scale.Y);
+                        Color.Red);
 
                     // Add Outline
                     _spriteBatch.DrawRectangle(
@@ -131,6 +137,36 @@ namespace CollisionDetection.Screens
             }
 
             _spriteBatch.End();
+        }
+
+        private void ConstrainObject(CollisionObject collisionObject)
+        {
+
+            var widthHalved = collisionObject.Bounds.Width / 2;
+            var heightHalved = collisionObject.Bounds.Height / 2;
+            if (collisionObject.Bounds.Center.X - widthHalved < 0)
+            {
+                collisionObject.Position.X = widthHalved;
+                collisionObject.Velocity.X *= -1;
+            }
+
+            if (collisionObject.Bounds.Center.X + widthHalved > ScreenWidth)
+            {
+                collisionObject.Position.X = ScreenWidth - widthHalved;
+                collisionObject.Velocity.X *= -1;
+            }
+
+            if (collisionObject.Bounds.Center.Y - heightHalved < 0)
+            {
+                collisionObject.Position.Y = heightHalved;
+                collisionObject.Velocity.Y *= -1;
+            }
+
+            if (collisionObject.Bounds.Center.Y + collisionObject.Bounds.Height / 2 > ScreenHeight)
+            {
+                collisionObject.Position.Y = ScreenHeight - heightHalved;
+                collisionObject.Velocity.Y *= -1;
+            }
         }
     }
 }
