@@ -23,7 +23,9 @@ namespace CollisionDetection.Screens
         private List<CollisionObject> _collisionObjects;        
         private Tweener _tweener;
         private Dictionary<CollisionObject, List<CollisionObject>> _collisions;
-        private readonly FastRandom _random;
+        private double _collisionTimeTracker;
+        private const double _collisionDelay = 0.2;
+        private readonly FastRandom _random;    
       
         public int ScreenWidth => GraphicsDevice.Viewport.Width;
         public int ScreenHeight => GraphicsDevice.Viewport.Height;
@@ -33,6 +35,7 @@ namespace CollisionDetection.Screens
             _random = new FastRandom();
             _collisionObjects = new List<CollisionObject>();
             _tweener = new Tweener();
+            _collisionTimeTracker = 0.0;
         }
 
         public override void Initialize()
@@ -57,8 +60,10 @@ namespace CollisionDetection.Screens
             var keyboardState = KeyboardExtended.GetState();
             var elapsedSeconds = gameTime.GetElapsedSeconds();
             _collisions = new Dictionary<CollisionObject, List<CollisionObject>>();
+            
+            _collisionTimeTracker += elapsedSeconds;
 
-            foreach(var collisionObject in _collisionObjects)
+            foreach (var collisionObject in _collisionObjects)
             {
                 _collisions[collisionObject] = new List<CollisionObject>();
             }
@@ -66,8 +71,14 @@ namespace CollisionDetection.Screens
             {
                 collisionObject.Position += collisionObject.Velocity * elapsedSeconds;
                 ConstrainObject(collisionObject);
-                HandleCollisions(collisionObject);
+                if (_collisionTimeTracker > _collisionDelay)
+                {
+                    HandleCollisions(collisionObject);
+                    //_collisionTimeTracker = 0.0;
+                }
             }
+
+            
 
             if (keyboardState.WasKeyJustDown(Keys.Escape))
             {
@@ -193,23 +204,50 @@ namespace CollisionDetection.Screens
                     var otherVelocity = otherObject.Velocity;
                     var thisVelocity = collisionObject.Velocity;
 
+                    // Allow for energy loss as part of the collision
+                    var collisionTransferEfficency = 0.99f;
+
                     var thisVelocityDelta = otherVelocity * (otherObject.Mass / collisionObject.Mass);
                     var otherVelocityDelta = thisVelocity * (collisionObject.Mass / collisionObject.Mass);
-                    collisionObject.Velocity += thisVelocityDelta;
+                    collisionObject.Velocity += thisVelocityDelta * collisionTransferEfficency;
                     collisionObject.Velocity -= otherVelocityDelta;
-                    otherObject.Velocity += otherVelocityDelta;
+                    otherObject.Velocity += otherVelocityDelta * collisionTransferEfficency;
                     otherObject.Velocity -= thisVelocityDelta;
 
-                    if(collisionObject.Bounds.Left < otherObject.Bounds.Left)
-                    {
-                        collisionObject.Position.X = otherObject.Bounds.Left - collisionObject.Bounds.Width / 2;
-                    }
+                    //if(collisionObject.Bounds.Left < otherObject.Bounds.Left)
+                    //{
+                    //    collisionObject.Position.X = otherObject.Bounds.Left - collisionObject.Bounds.Width / 2;
+                    //}
 
-                    if(collisionObject.Bounds.Right > otherObject.Bounds.Right)
-                    {
-                        collisionObject.Position.X = otherObject.Bounds.Right + collisionObject.Bounds.Width / 2;
-                    }
+                    //if(collisionObject.Bounds.Right > otherObject.Bounds.Right)
+                    //{
+                    //    collisionObject.Position.X = otherObject.Bounds.Right + collisionObject.Bounds.Width / 2;
+                    //}
                     _collisions[collisionObject].Add(otherObject);
+
+                    while (otherObject.Bounds.Intersects(collisionObject.Bounds))
+                    {
+                        if(otherObject.Position.X > collisionObject.Position.X)
+                        {
+                            collisionObject.Position.X--;
+                            otherObject.Position.X++;
+                        }
+                        if(otherObject.Position.X < collisionObject.Position.X)
+                        {
+                            collisionObject.Position.X++;
+                            otherObject.Position.X--;
+                        }
+                        if(otherObject.Position.Y > collisionObject.Position.Y)
+                        {
+                            collisionObject.Position.Y--;
+                            otherObject.Position.Y++;
+                        }
+                        if(otherObject.Position.Y < collisionObject.Position.Y)
+                        {
+                            collisionObject.Position.Y++;
+                            otherObject.Position.Y--;
+                        }
+                    }
                 }
             }
         }
